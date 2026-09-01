@@ -220,7 +220,22 @@ private fun HomeScreen(s: ProtectionSettings, vpn: Boolean, vm: HajizViewModel, 
         OutlinedButton(openVpn, Modifier.fillMaxWidth()) { Text("Open Android VPN settings") }
     } }
 }
-@Composable private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) { Card { Row(Modifier.fillMaxWidth().padding(16.dp), Alignment.CenterVertically) { Text(label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold); Switch(value, onChange) } } }
+@Composable
+private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+    Card {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                label,
+                Modifier.weight(1f),
+                fontWeight = FontWeight.SemiBold
+            )
+            Switch(value, onChange)
+        }
+    }
+}
 
 @Composable private fun Secondary(nav: NavHostController, title: String, icon: ImageVector, content: @Composable () -> Unit) { Scaffold(topBar = { Header(title, nav) }) { p -> Column(Modifier.padding(p).padding(20.dp).verticalScroll(rememberScrollState()), Arrangement.spacedBy(16.dp)) { Icon(icon, null, Modifier.size(54.dp), MaterialTheme.colorScheme.primary); content() } } }
 @Composable private fun ActivityScreen(s: ProtectionSettings) {
