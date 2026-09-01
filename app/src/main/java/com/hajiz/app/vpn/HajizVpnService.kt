@@ -57,7 +57,7 @@ class HajizVpnService : VpnService() {
         return START_STICKY
     }
 
-    private fun runDnsFilter() {
+   private suspend fun runDnsFilter() {
         val builder = Builder()
             .setSession(getString(R.string.app_name))
             .setMtu(1500)
