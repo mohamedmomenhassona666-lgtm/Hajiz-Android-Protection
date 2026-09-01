@@ -6,7 +6,7 @@ import android.content.Context
 
 enum class DeviceManagementState { DEVICE_OWNER, PROFILE_OWNER, PERSONAL_DEVICE }
 
-class DevicePolicyProtectionManager(context: Context) {
+class DevicePolicyProtectionManager(private val context: Context) {
     private val manager = context.getSystemService(DevicePolicyManager::class.java)
     private val component = ComponentName(context, HajizDeviceAdminReceiver::class.java)
 
