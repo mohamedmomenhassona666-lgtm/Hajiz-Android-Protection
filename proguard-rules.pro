@@ -1,0 +1,1 @@
+# Hajiz does not require custom shrinking rules in the first release.
