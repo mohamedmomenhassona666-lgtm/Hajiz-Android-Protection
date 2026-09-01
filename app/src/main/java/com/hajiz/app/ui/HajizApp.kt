@@ -318,7 +318,8 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     var confirmation by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val manager = remember { SecurePinManager(LocalContext.current) }
+    val context = LocalContext.current
+val manager = remember(context) { SecurePinManager(context) }
     Text("A protection PIN helps make sensitive changes intentional.")
     OutlinedTextField(pin, { pin = it.filter(Char::isDigit).take(8) }, Modifier.fillMaxWidth(), label = { Text("Protection PIN") })
     OutlinedTextField(confirmation, { confirmation = it.filter(Char::isDigit).take(8) }, Modifier.fillMaxWidth(), label = { Text("Confirm PIN") })
