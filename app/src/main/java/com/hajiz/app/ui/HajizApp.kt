@@ -254,7 +254,28 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     } else {
         Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         repeat(minOf(s.blockedAttemptsToday, 5)) { index ->
-            Card { Row(Modifier.fillMaxWidth().padding(16.dp), Alignment.CenterVertically) { Icon(Icons.Default.FilterAlt, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(12.dp)); Column { Text("Protected request"); Text("Local blocklist match", color = MaterialTheme.colorScheme.onSurfaceVariant) }; Spacer(Modifier.weight(1f)); Text("Today") } }
+           Card {
+    Row(
+        Modifier.fillMaxWidth().padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Default.FilterAlt,
+            null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text("Protected request")
+            Text(
+                "Local blocklist match",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Text("Today")
+    }
+}
         }
     }
 }
