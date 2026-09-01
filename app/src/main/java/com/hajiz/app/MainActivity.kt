@@ -1,0 +1,83 @@
+package com.hajiz.app
+
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.VpnService
+import android.os.Build
+import android.os.Bundle
+import android.Manifest
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import com.hajiz.app.ui.HajizApp
+import com.hajiz.app.ui.HajizViewModel
+import com.hajiz.app.ui.theme.HajizTheme
+import com.hajiz.app.vpn.HajizVpnService
+
+class MainActivity : ComponentActivity() {
+    private val viewModel: HajizViewModel by viewModels {
+        HajizViewModel.Factory((application as HajizApplication).settingsRepository)
+    }
+
+    private val vpnPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                startVpn()
+            } else {
+                viewModel.reportVpnPermissionDenied()
+            }
+        }
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private val vpnStateReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            viewModel.setVpnActive(intent.getBooleanExtra(HajizVpnService.EXTRA_ACTIVE, false))
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        setContent {
+            HajizTheme {
+                HajizApp(
+                    viewModel = viewModel,
+                    onRequestVpnPermission = {
+                        val permissionIntent = VpnService.prepare(this)
+                        if (permissionIntent == null) startVpn()
+                        else vpnPermissionLauncher.launch(permissionIntent)
+                    },
+                    onOpenVpnSettings = {
+                        startActivity(Intent("android.settings.VPN_SETTINGS"))
+                    },
+                )
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(HajizVpnService.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(vpnStateReceiver, filter, RECEIVER_NOT_EXPORTED)
+        else @Suppress("DEPRECATION") registerReceiver(vpnStateReceiver, filter)
+    }
+
+    override fun onStop() {
+        unregisterReceiver(vpnStateReceiver)
+        super.onStop()
+    }
+
+    private fun startVpn() {
+        ContextCompat.startForegroundService(this, Intent(this, HajizVpnService::class.java))
+        viewModel.startProtection()
+    }
+}
