@@ -193,21 +193,7 @@ private fun discoverUpstreamDnsServers(): List<InetAddress> {
         null
     }
 }
-        return try {
-            DatagramSocket().use { socket ->
-                protect(socket)
-                socket.soTimeout = 3000
-                socket.connect(InetSocketAddress(UPSTREAM_DNS, 53))
-                socket.send(DatagramPacket(query, query.size))
-                val responseBytes = ByteArray(4096)
-                val response = DatagramPacket(responseBytes, responseBytes.size)
-                socket.receive(response)
-                responseBytes.copyOf(response.length)
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
+  }
 
     private fun stopProtection() {
         packetJob?.cancel()
