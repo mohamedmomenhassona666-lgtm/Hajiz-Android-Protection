@@ -191,7 +191,7 @@ private fun discoverUpstreamDnsServers(): List<InetAddress> {
         }
     } catch (_: Exception) {
         null
-    }
+
 
   }
 
