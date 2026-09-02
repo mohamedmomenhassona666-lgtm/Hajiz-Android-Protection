@@ -266,17 +266,17 @@ private fun discoverUpstreamDnsServers(): List<InetAddress> {
         private const val CHANNEL_ID = "hajiz_protection"
         private const val NOTIFICATION_ID = 1001
         private const val BLOCKED_NOTIFICATION_ID = 2000
-        private const val UPSTREAM_DNS = "1.1.1.1"
+               private const val UPSTREAM_DNS = "1.1.1.1"
         private const val DNS_SOCKET_TIMEOUT_MS = 500
-private const val DNS_RESPONSE_WINDOW_MS = 2_000L
-private const val MAX_UPSTREAM_DNS_SERVERS = 8
+        private const val DNS_RESPONSE_WINDOW_MS = 2_000L
+        private const val MAX_UPSTREAM_DNS_SERVERS = 8
 
-private val PUBLIC_DNS_SERVERS = listOf(
-    "1.1.1.1",
-    "1.0.0.1",
-    "8.8.8.8",
-    "8.8.4.4",
-    "9.9.9.9",
-)
+        private val PUBLIC_DNS_SERVERS = listOf(
+            "1.1.1.1",
+            "1.0.0.1",
+            "8.8.8.8",
+            "8.8.4.4",
+            "9.9.9.9",
+        )
     }
 }
