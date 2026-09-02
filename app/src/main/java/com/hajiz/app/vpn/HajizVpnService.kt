@@ -64,9 +64,8 @@ class HajizVpnService : VpnService() {
             .addAddress("10.8.0.2", 32)
             // DNS-only routing keeps ordinary app traffic on the system path while
             // giving Hajiz a local inspection point for the system DNS resolver.
-            .addRoute("1.1.1.1", 32)
-            .addRoute("1.0.0.1", 32)
-            .addDnsServer("1.1.1.1")
+            .addRoute("10.8.0.1", 32)
+            .addDnsServer("10.8.0.1")
         vpnInterface = try {
             builder.establish()
         } catch (_: SecurityException) {
