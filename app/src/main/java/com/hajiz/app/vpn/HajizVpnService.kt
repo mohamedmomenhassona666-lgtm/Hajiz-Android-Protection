@@ -36,7 +36,9 @@ import kotlin.math.min
 
 class HajizVpnService : VpnService() {
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val serviceScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val matcher = BlocklistMatcher()
 
     private var vpnInterface: ParcelFileDescriptor? = null
@@ -47,6 +49,7 @@ class HajizVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+
         createNotificationChannel()
 
         val app = application as HajizApplication
@@ -54,7 +57,9 @@ class HajizVpnService : VpnService() {
         serviceScope.launch {
             app.blocklistProvider
                 .observeBlockedDomains()
-                .collectLatest { domains = it }
+                .collectLatest {
+                    domains = it
+                }
         }
     }
 
@@ -63,6 +68,7 @@ class HajizVpnService : VpnService() {
         flags: Int,
         startId: Int,
     ): Int {
+
         if (intent?.action == ACTION_STOP) {
             stopProtection()
             return START_NOT_STICKY
@@ -83,10 +89,14 @@ class HajizVpnService : VpnService() {
     }
 
     private suspend fun runDnsFilter() {
-        var upstreamDnsServers = discoverUpstreamDnsServers()
+
+        var upstreamDnsServers =
+            discoverUpstreamDnsServers()
 
         val builder = Builder()
-            .setSession(getString(R.string.app_name))
+            .setSession(
+                getString(R.string.app_name),
+            )
             .setMtu(1500)
             .addAddress("10.8.0.2", 32)
             .addRoute(VIRTUAL_DNS, 32)
@@ -103,26 +113,38 @@ class HajizVpnService : VpnService() {
 
         sendState(true)
 
-        val input = FileInputStream(descriptor.fileDescriptor)
-        val output = FileOutputStream(descriptor.fileDescriptor)
+        val input =
+            FileInputStream(
+                descriptor.fileDescriptor,
+            )
+
+        val output =
+            FileOutputStream(
+                descriptor.fileDescriptor,
+            )
 
         val buffer = ByteArray(32767)
 
         try {
             while (!Thread.currentThread().isInterrupted) {
+
                 val length = input.read(buffer)
 
                 if (length <= 0) {
                     break
                 }
 
-                val question = DnsPacket.parseIpv4Udp(
-                    buffer.copyOf(length),
-                ) ?: continue
+                val question =
+                    DnsPacket.parseIpv4Udp(
+                        buffer.copyOf(length),
+                    ) ?: continue
 
-                val host = question.questionName ?: continue
+                val host =
+                    question.questionName
+                        ?: continue
 
                 if (matcher.isBlocked(host, domains)) {
+
                     output.write(
                         DnsPacket.nxdomain(question),
                     )
@@ -132,26 +154,35 @@ class HajizVpnService : VpnService() {
                         .recordBlockedAttempt()
 
                     notifyBlocked()
+
                 } else {
-                    val response = resolveThroughUpstream(
-                        question.payload,
-                        upstreamDnsServers,
-                    )
+
+                    val response =
+                        resolveThroughUpstream(
+                            question.payload,
+                            upstreamDnsServers,
+                        )
 
                     if (response != null) {
+
                         consecutiveResolveFailures = 0
 
                         output.write(
                             DnsPacket.wrapIpv4Udp(
                                 payload = response,
-                                sourceAddress = question.destinationAddress,
-                                destinationAddress = question.sourceAddress,
+                                sourceAddress =
+                                    question.destinationAddress,
+                                destinationAddress =
+                                    question.sourceAddress,
                                 sourcePort = 53,
-                                destinationPort = question.sourcePort,
+                                destinationPort =
+                                    question.sourcePort,
                             ),
                         )
+
                     } else {
-                        consecutiveResolveFailures += 1
+
+                        consecutiveResolveFailures++
 
                         upstreamDnsServers =
                             discoverUpstreamDnsServers()
@@ -168,10 +199,13 @@ class HajizVpnService : VpnService() {
 
                 output.flush()
             }
+
         } catch (_: CancellationException) {
             // Normal service shutdown.
+
         } catch (_: Exception) {
             // Avoid crash loops.
+
         } finally {
             input.close()
             output.close()
@@ -179,14 +213,21 @@ class HajizVpnService : VpnService() {
     }
 
     private fun discoverUpstreamDnsServers(): List<InetAddress> {
-        val discovered = mutableListOf<InetAddress>()
+
+        val discovered =
+            mutableListOf<InetAddress>()
 
         val connectivity =
-            getSystemService(ConnectivityManager::class.java)
+            getSystemService(
+                ConnectivityManager::class.java,
+            )
 
         connectivity.allNetworks.forEach { network ->
+
             val capabilities =
-                connectivity.getNetworkCapabilities(network)
+                connectivity.getNetworkCapabilities(
+                    network,
+                )
 
             if (
                 capabilities?.hasTransport(
@@ -196,9 +237,11 @@ class HajizVpnService : VpnService() {
                 return@forEach
             }
 
-            connectivity.getLinkProperties(network)
-                ?.dnsServers
-                ?.let(discovered::addAll)
+            connectivity.getLinkProperties(
+                network,
+            )?.dnsServers?.let(
+                discovered::addAll,
+            )
         }
 
         val publicFallbacks =
@@ -209,44 +252,63 @@ class HajizVpnService : VpnService() {
             }
 
         return (discovered + publicFallbacks)
-            .distinctBy { it.hostAddress }
-            .take(MAX_UPSTREAM_DNS_SERVERS)
+            .distinctBy {
+                it.hostAddress
+            }
+            .take(
+                MAX_UPSTREAM_DNS_SERVERS,
+            )
     }
 
     private fun resolveThroughUpstream(
         query: ByteArray,
         upstreamDnsServers: List<InetAddress>,
     ): ByteArray? {
+
+        if (upstreamDnsServers.isEmpty()) {
+            return null
+        }
+
         return try {
-            DatagramSocket().use { socket ->
+
+            val socket = DatagramSocket()
+
+            try {
 
                 if (!protect(socket)) {
-                    return@use null
+                    return null
                 }
 
-                socket.soTimeout = DNS_SOCKET_TIMEOUT_MS
-
                 upstreamDnsServers.forEach { server ->
-                    socket.send(
+
+                    val packet =
                         DatagramPacket(
                             query,
                             query.size,
-                            InetSocketAddress(server, 53),
-                        ),
-                    )
+                            InetSocketAddress(
+                                server,
+                                53,
+                            ),
+                        )
+
+                    socket.send(packet)
                 }
 
                 val deadline =
                     System.nanoTime() +
-                        DNS_RESPONSE_WINDOW_MS * 1_000_000L
+                        DNS_RESPONSE_WINDOW_MS *
+                        1_000_000L
 
                 while (true) {
+
                     val remainingMs =
-                        (deadline - System.nanoTime()) /
-                            1_000_000L
+                        (
+                            deadline -
+                                System.nanoTime()
+                            ) / 1_000_000L
 
                     if (remainingMs <= 0) {
-                        return@use null
+                        return null
                     }
 
                     socket.soTimeout =
@@ -255,16 +317,21 @@ class HajizVpnService : VpnService() {
                             DNS_SOCKET_TIMEOUT_MS,
                         )
 
-                    val responseBytes = ByteArray(4096)
+                    val responseBytes =
+                        ByteArray(4096)
 
-                    val response = DatagramPacket(
-                        responseBytes,
-                        responseBytes.size,
-                    )
+                    val response =
+                        DatagramPacket(
+                            responseBytes,
+                            responseBytes.size,
+                        )
 
                     try {
+
                         socket.receive(response)
+
                     } catch (_: SocketTimeoutException) {
+
                         continue
                     }
 
@@ -273,18 +340,24 @@ class HajizVpnService : VpnService() {
                         responseBytes[0] == query[0] &&
                         responseBytes[1] == query[1]
                     ) {
-                        return@use responseBytes.copyOf(
+
+                        return responseBytes.copyOf(
                             response.length,
                         )
                     }
                 }
+
+            } finally {
+                socket.close()
             }
+
         } catch (_: Exception) {
             null
         }
     }
 
     private fun stopProtection() {
+
         packetJob?.cancel()
         packetJob = null
 
@@ -293,21 +366,33 @@ class HajizVpnService : VpnService() {
 
         sendState(false)
 
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopForeground(
+            STOP_FOREGROUND_REMOVE,
+        )
+
         stopSelf()
     }
 
     override fun onDestroy() {
+
         stopProtection()
+
         serviceScope.cancel()
+
         super.onDestroy()
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.O
+        ) {
+
             getSystemService(
                 NotificationManager::class.java,
             ).createNotificationChannel(
+
                 NotificationChannel(
                     CHANNEL_ID,
                     getString(
@@ -320,16 +405,23 @@ class HajizVpnService : VpnService() {
     }
 
     private fun buildNotification(): Notification =
+
         NotificationCompat.Builder(
             this,
             CHANNEL_ID,
         )
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(
+                R.drawable.ic_notification,
+            )
             .setContentTitle(
-                getString(R.string.notification_title),
+                getString(
+                    R.string.notification_title,
+                ),
             )
             .setContentText(
-                getString(R.string.notification_text),
+                getString(
+                    R.string.notification_text,
+                ),
             )
             .setOngoing(true)
             .setCategory(
@@ -338,6 +430,7 @@ class HajizVpnService : VpnService() {
             .build()
 
     private fun notifyBlocked() {
+
         val openBlockedPage =
             PendingIntent.getActivity(
                 this,
@@ -353,33 +446,45 @@ class HajizVpnService : VpnService() {
         getSystemService(
             NotificationManager::class.java,
         ).notify(
+
             BLOCKED_NOTIFICATION_ID,
+
             NotificationCompat.Builder(
                 this,
                 CHANNEL_ID,
             )
-                .setSmallIcon(R.drawable.ic_notification)
+                .setSmallIcon(
+                    R.drawable.ic_notification,
+                )
                 .setContentTitle(
                     getString(
-                        R.string.content_blocked_notification_title,
+                        R.string
+                            .content_blocked_notification_title,
                     ),
                 )
                 .setContentText(
                     getString(
-                        R.string.content_blocked_notification_text,
+                        R.string
+                            .content_blocked_notification_text,
                     ),
                 )
                 .setAutoCancel(true)
-                .setContentIntent(openBlockedPage)
+                .setContentIntent(
+                    openBlockedPage,
+                )
                 .build(),
         )
     }
 
     private fun sendState(active: Boolean) {
+
         sendBroadcast(
             Intent(ACTION_STATE_CHANGED)
                 .setPackage(packageName)
-                .putExtra(EXTRA_ACTIVE, active),
+                .putExtra(
+                    EXTRA_ACTIVE,
+                    active,
+                ),
         )
     }
 
@@ -391,14 +496,17 @@ class HajizVpnService : VpnService() {
         const val ACTION_STATE_CHANGED =
             "com.hajiz.app.action.STATE_CHANGED"
 
-        const val EXTRA_ACTIVE = "active"
+        const val EXTRA_ACTIVE =
+            "active"
 
         private const val CHANNEL_ID =
             "hajiz_protection"
 
-        private const val NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_ID =
+            1001
 
-        private const val BLOCKED_NOTIFICATION_ID = 2000
+        private const val BLOCKED_NOTIFICATION_ID =
+            2000
 
         private const val VIRTUAL_DNS =
             "10.8.0.1"
@@ -415,12 +523,13 @@ class HajizVpnService : VpnService() {
         private const val MAX_UPSTREAM_DNS_SERVERS =
             8
 
-        private val PUBLIC_DNS_SERVERS = listOf(
-            "1.1.1.1",
-            "1.0.0.1",
-            "8.8.8.8",
-            "8.8.4.4",
-            "9.9.9.9",
-        )
+        private val PUBLIC_DNS_SERVERS =
+            listOf(
+                "1.1.1.1",
+                "1.0.0.1",
+                "8.8.8.8",
+                "8.8.4.4",
+                "9.9.9.9",
+            )
     }
 }
