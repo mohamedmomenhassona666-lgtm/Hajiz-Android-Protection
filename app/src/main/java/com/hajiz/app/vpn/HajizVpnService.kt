@@ -35,6 +35,7 @@ class HajizVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var packetJob: Job? = null
     private var domains: List<BlockedDomain> = emptyList()
+    private var consecutiveResolveFailures = 0
 
     override fun onCreate() {
         super.onCreate()
