@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.net.VpnService
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.app.PendingIntent
@@ -28,6 +30,9 @@ import java.io.FileOutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
+import java.net.InetAddress
+import java.net.SocketTimeoutException
+import kotlin.math.min
 
 class HajizVpnService : VpnService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -59,6 +64,7 @@ class HajizVpnService : VpnService() {
     }
 
    private suspend fun runDnsFilter() {
+       var upstreamDnsServers = discoverUpstreamDnsServers()
         val builder = Builder()
             .setSession(getString(R.string.app_name))
             .setMtu(1500)
@@ -89,7 +95,7 @@ class HajizVpnService : VpnService() {
                     (application as HajizApplication).settingsRepository.recordBlockedAttempt()
                     notifyBlocked()
                 } else {
-                    val response = resolveThroughUpstream(question.payload)
+                   val response = resolveThroughUpstream(question.payload, upstreamDnsServers)
                     if (response != null) {
                         output.write(
                             DnsPacket.wrapIpv4Udp(
@@ -113,8 +119,80 @@ class HajizVpnService : VpnService() {
             output.close()
         }
     }
+private fun discoverUpstreamDnsServers(): List<InetAddress> {
+    val discovered = mutableListOf<InetAddress>()
+    val connectivity = getSystemService(ConnectivityManager::class.java)
 
-    private fun resolveThroughUpstream(query: ByteArray): ByteArray? {
+    connectivity.allNetworks.forEach { network ->
+        val capabilities = connectivity.getNetworkCapabilities(network)
+
+        if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) {
+            return@forEach
+        }
+
+        connectivity.getLinkProperties(network)?.dnsServers?.let(discovered::addAll)
+    }
+
+    val publicFallbacks = PUBLIC_DNS_SERVERS.mapNotNull { address ->
+        runCatching { InetAddress.getByName(address) }.getOrNull()
+    }
+
+    return (discovered + publicFallbacks)
+        .distinctBy { it.hostAddress }
+        .take(MAX_UPSTREAM_DNS_SERVERS)
+}
+    private fun resolveThroughUpstream(
+    query: ByteArray,
+    upstreamDnsServers: List<InetAddress>,
+): ByteArray? {
+    return try {
+        DatagramSocket().use { socket ->
+            if (!protect(socket)) return@use null
+
+            upstreamDnsServers.forEach { server ->
+                socket.send(
+                    DatagramPacket(
+                        query,
+                        query.size,
+                        InetSocketAddress(server, 53),
+                    ),
+                )
+            }
+
+            val deadline = System.nanoTime() + DNS_RESPONSE_WINDOW_MS * 1_000_000L
+
+            while (true) {
+                val remainingMs =
+                    (deadline - System.nanoTime()) / 1_000_000L
+
+                if (remainingMs <= 0) return@use null
+
+                socket.soTimeout =
+                    min(remainingMs.toInt(), DNS_SOCKET_TIMEOUT_MS)
+
+                val responseBytes = ByteArray(4096)
+                val response =
+                    DatagramPacket(responseBytes, responseBytes.size)
+
+                try {
+                    socket.receive(response)
+                } catch (_: SocketTimeoutException) {
+                    return@use null
+                }
+
+                if (
+                    response.length >= 2 &&
+                    responseBytes[0] == query[0] &&
+                    responseBytes[1] == query[1]
+                ) {
+                    return@use responseBytes.copyOf(response.length)
+                }
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
         return try {
             DatagramSocket().use { socket ->
                 protect(socket)
@@ -203,5 +281,16 @@ class HajizVpnService : VpnService() {
         private const val NOTIFICATION_ID = 1001
         private const val BLOCKED_NOTIFICATION_ID = 2000
         private const val UPSTREAM_DNS = "1.1.1.1"
+        private const val DNS_SOCKET_TIMEOUT_MS = 500
+private const val DNS_RESPONSE_WINDOW_MS = 2_000L
+private const val MAX_UPSTREAM_DNS_SERVERS = 8
+
+private val PUBLIC_DNS_SERVERS = listOf(
+    "1.1.1.1",
+    "1.0.0.1",
+    "8.8.8.8",
+    "8.8.4.4",
+    "9.9.9.9",
+)
     }
 }
