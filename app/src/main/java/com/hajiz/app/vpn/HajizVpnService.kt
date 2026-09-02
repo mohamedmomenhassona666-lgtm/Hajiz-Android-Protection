@@ -193,7 +193,7 @@ private fun discoverUpstreamDnsServers(): List<InetAddress> {
         null
 
 
-  }
+      }  
 
     private fun stopProtection() {
         packetJob?.cancel()
