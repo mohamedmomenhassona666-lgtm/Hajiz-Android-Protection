@@ -98,9 +98,18 @@ class HajizVpnService : VpnService() {
                 getString(R.string.app_name),
             )
             .setMtu(1500)
-            .addAddress("10.8.0.2", 32)
-            .addRoute(VIRTUAL_DNS, 32)
-            .addDnsServer(VIRTUAL_DNS)
+            .setBlocking(true)
+            .addAddress(
+                "10.8.0.2",
+                32,
+            )
+            .addRoute(
+                VIRTUAL_DNS,
+                32,
+            )
+            .addDnsServer(
+                VIRTUAL_DNS,
+            )
 
         vpnInterface = try {
             builder.establish()
@@ -134,13 +143,16 @@ class HajizVpnService : VpnService() {
                     break
                 }
 
+                val packet =
+                    buffer.copyOf(length)
+
                 val question =
-                    DnsPacket.parseIpv4Udp(
-                        buffer.copyOf(length),
-                    ) ?: continue
+                    DnsPacket.parseIpv4Udp(packet)
+                        ?: continue
 
                 val host =
-                    question.questionName ?: continue
+                    question.questionName
+                        ?: continue
 
                 if (matcher.isBlocked(host, domains)) {
 
@@ -190,7 +202,7 @@ class HajizVpnService : VpnService() {
                             consecutiveResolveFailures >=
                             MAX_CONSECUTIVE_RESOLVE_FAILURES
                         ) {
-                            stopProtection()
+                            sendState(false)
                             break
                         }
                     }
@@ -268,11 +280,12 @@ class HajizVpnService : VpnService() {
             return null
         }
 
-        val socket = try {
-            DatagramSocket()
-        } catch (_: Exception) {
-            return null
-        }
+        val socket =
+            try {
+                DatagramSocket()
+            } catch (_: Exception) {
+                return null
+            }
 
         try {
 
@@ -375,7 +388,8 @@ class HajizVpnService : VpnService() {
 
     override fun onDestroy() {
 
-        stopProtection()
+        vpnInterface?.close()
+        vpnInterface = null
 
         serviceScope.cancel()
 
@@ -405,6 +419,7 @@ class HajizVpnService : VpnService() {
     }
 
     private fun buildNotification(): Notification =
+
         NotificationCompat.Builder(
             this,
             CHANNEL_ID,
